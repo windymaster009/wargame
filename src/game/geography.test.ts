@@ -3,9 +3,9 @@ import { geography, geographicBounds, provinceCenter } from "./geography";
 import { makeProvinces, NATIONS } from "./map";
 
 describe("geographic strategic map", () => {
-  it("uses physical, non-hex territory polygons for all 35 provinces", () => {
+  it("uses physical, non-hex territory polygons for all 55 provinces", () => {
     const provinces = makeProvinces();
-    expect(Object.keys(geography.provinces)).toHaveLength(35);
+    expect(Object.keys(geography.provinces)).toHaveLength(55);
     for (const province of Object.values(provinces)) {
       const shape = geography.provinces[province.id];
       expect(shape.polygons.length).toBeGreaterThan(0);
@@ -33,13 +33,18 @@ describe("geographic strategic map", () => {
       visited.add(id);
       queue.push(...provinces[id].neighbors);
     }
-    expect(visited.size).toBe(35);
+    expect(visited.size).toBe(55);
   });
 
   it("allows cross-border campaigns only where strategic regions physically meet", () => {
     const provinces = makeProvinces();
-    expect(provinces["phnom-penh"].neighbors).toContain("saigon");
+    expect(provinces["svay-rieng"].neighbors).toContain("saigon");
     expect(provinces["songkhla"].neighbors).toContain("kedah");
     expect(provinces["phnom-penh"].neighbors).not.toContain("hanoi");
+    const cambodian = Object.values(provinces).filter((p)=>p.originalOwner==="KHM");
+    expect(cambodian).toHaveLength(25);
+    expect(cambodian.map((p)=>p.name)).toContain("Banteay Meanchey");
+    expect(cambodian.map((p)=>p.name)).toContain("Tboung Khmum");
+    expect(cambodian.map((p)=>p.name)).toContain("Kep");
   });
 });
