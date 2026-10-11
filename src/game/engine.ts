@@ -18,8 +18,7 @@ function isOwned(state: GameState, provinceId: string): boolean {
   return state.playerNation !== null && state.provinces[provinceId]?.owner === state.playerNation;
 }
 function cloneResources(state: GameState): Record<NationId, NationResources> {
-  return Object.fromEntries(NATIONS.map((n) => [n.id, { ...state.nations[n.id] }]))
-    as Record<NationId, NationResources>;
+  return Object.fromEntries(NATIONS.map((n) => [n.id, { ...state.nations[n.id] }])) as Record<NationId, NationResources>;
 }
 function hasCapital(state: GameState, nationId: NationId): boolean {
   return state.provinces[NATION_BY_ID[nationId].capital].owner === nationId;
