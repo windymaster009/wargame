@@ -39,6 +39,9 @@ export default function App() {
     : game.divisions.find((division) => division.id === selectedDivisionId) ?? null;
   const ownedDivisionList = game.divisions.filter((division) => division.owner === game.playerNation);
   const currentOrder = game.orders.find((order) => order.divisionId === selectedDivisionId);
+  const siegeOrder = selectedProvinceId
+    ? game.orders.find((order)=>order.kind==="attack" && order.destination===selectedProvinceId)
+    : undefined;
   const selectedDivisionValid = Boolean(selectedDivision && selectedDivision.owner === game.playerNation);
   const provinceOwned = Boolean(province && province.owner === game.playerNation);
   const totalOwn = game.playerNation ? landCount(game, game.playerNation) : 0;
@@ -168,6 +171,13 @@ export default function App() {
                     const order = game.orders.find((item) => item.divisionId === division.id);
                     return (
                       <button key={division.id} className={"division-row " + (selectedDivisionId === division.id ? "selected" : "")}
+                        draggable
+                        onDragStart={(event)=>{
+                          event.dataTransfer.setData("application/x-iron-division", String(division.id));
+                          event.dataTransfer.effectAllowed = "move";
+                          selectUnit(division.id);
+                        }}
+                        title="Click to select, or drag onto a province on the map"
                         onClick={() => selectUnit(division.id)}>
                         <span className="division-emblem">Ⅱ</span>
                         <span className="division-description"><strong>{division.name}</strong>
@@ -264,6 +274,13 @@ export default function App() {
               <div><span>FORT LEVEL</span><strong>{province.fort} / 3</strong></div>
               <div><span>LOCAL DEFENDERS</span><strong>{number(province.garrison)} / {number(province.maxGarrison)}</strong></div>
             </div>
+            {siegeOrder && <div className="siege-panel">
+              <div className="section-title">BORDER ENGAGEMENT <span>⚔ IN PROGRESS</span></div>
+              <p>Defending manpower: {number(province.garrison)} / {number(province.maxGarrison)}</p>
+              <div className="siege-meter"><span style={{width: Math.round(
+                100*(1-province.garrison/Math.max(1,province.maxGarrison)))+"%"}} /></div>
+              <small>Attacker remains at the frontier until defenders collapse or the offensive fails.</small>
+            </div>}
             {provinceOwned && game.status === "playing" && <>
               <button className="gold-button" onClick={recruit}>+ RECRUIT INFANTRY <small>{RECRUIT_MANPOWER} M / {RECRUIT_EQUIPMENT} E</small></button>
               <button className="outline-button" onClick={upgradeFort}>FORTIFY PROVINCE <small>{FORT_EQUIPMENT} E</small></button>
