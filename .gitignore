@@ -7,3 +7,6 @@ coverage/
 .vite/
 .DS_Store
 *.log
+
+# Synced, attribution-required map dataset (see THIRD_PARTY_ASSETS.md)
+public/maps/*.bin
