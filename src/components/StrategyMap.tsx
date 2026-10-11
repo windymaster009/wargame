@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Text, TextStyle, Texture } from "pixi.js";
 import { geography, MAP_WIDTH, MAP_HEIGHT, mapPoint, provinceCenter, geographicBounds } from "../game/geography";
 import { NATIONS, NATION_BY_ID } from "../game/map";
 import { MARCH_TICKS } from "../game/engine";
+import { decodeOpenFrontTerrain, OPENFRONT_MAP_WIDTH, OPENFRONT_MAP_HEIGHT,
+  OPENFRONT_TERRAIN_URL, openFrontRasterPlacement } from "../game/openfrontTerrain";
 import { clipFront, invasionDirection, progressCutoff, type MapPoint } from "../game/frontline";
 import type { GameState, Terrain } from "../game/types";
 
@@ -106,6 +108,9 @@ export function StrategyMap({
   const mountRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const worldRef = useRef<Container | null>(null);
+  const terrainTextureRef = useRef<Texture | null>(null);
+  const [terrainReady, setTerrainReady] = useState(false);
+  const [hoveredProvince, setHoveredProvince] = useState<string | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
   const clickRef = useRef(onProvinceClick);
   const selectUnitRef = useRef(onDivisionSelect);
@@ -245,6 +250,46 @@ export function StrategyMap({
   const zoomRefValue = useRef(zoom);
   zoomRefValue.current = zoom;
 
+  // Read the actual OpenFront map's high-resolution encoded terrain data once.
+  // It is a separate CC BY-SA dataset, never part of the simulation's logic.
+  useEffect(() => {
+    let disposed = false;
+    let canvasTexture: Texture | null = null;
+    const load = async () => {
+      try {
+        const res = await fetch(OPENFRONT_TERRAIN_URL);
+        if (!res.ok) throw new Error("Map file unavailable: " + res.status);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const rgba = decodeOpenFrontTerrain(bytes);
+        if (disposed) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = OPENFRONT_MAP_WIDTH;
+        canvas.height = OPENFRONT_MAP_HEIGHT;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas 2D context unavailable");
+        context.putImageData(
+          new ImageData(rgba, OPENFRONT_MAP_WIDTH, OPENFRONT_MAP_HEIGHT), 0, 0,
+        );
+        canvasTexture = new Texture({ source: new CanvasSource({ resource: canvas }) });
+        if (disposed) {
+          canvasTexture.destroy(true);
+          return;
+        }
+        terrainTextureRef.current = canvasTexture;
+        setTerrainReady(true);
+      } catch (err) {
+        // The game remains playable with the original geographic fallback.
+        console.warn("OpenFront terrain unavailable; using local map fallback", err);
+      }
+    };
+    void load();
+    return () => {
+      disposed = true;
+      terrainTextureRef.current = null;
+      canvasTexture?.destroy(true);
+    };
+  }, []);
+
   useEffect(() => {
     const app = appRef.current;
     if (!ready || !app) return;
@@ -273,20 +318,34 @@ export function StrategyMap({
     sea.eventMode = "none";
     world.addChild(sea);
 
+    const raster = terrainTextureRef.current;
+    if (raster) {
+      const terrainSprite = new Sprite(raster);
+      const position = openFrontRasterPlacement();
+      terrainSprite.position.set(position.x, position.y);
+      terrainSprite.scale.set(position.scaleX, position.scaleY);
+      terrainSprite.eventMode = "none";
+      world.addChild(terrainSprite);
+    }
+
     const continents = new Graphics();
     for (const id of BACKDROP) {
       for (const ring of geography.countries[id] ?? []) {
-        continents.poly(polygonPoints(ring))
-          .fill({ color: 0x8eaaa4, alpha: .52 })
-          .stroke({ width: 1.2, color: 0x4c8c95, alpha: .55 });
+        if (!raster) {
+          continents.poly(polygonPoints(ring))
+            .fill({ color: 0x8eaaa4, alpha: .52 })
+            .stroke({ width: 1.2, color: 0x4c8c95, alpha: .55 });
+        }
       }
     }
     // Underpaint/playable land and coastlines follow real simplified boundaries.
     for (const nation of NATIONS) {
       for (const ring of geography.countries[nation.id] ?? []) {
-        continents.poly(polygonPoints(ring))
-          .fill({ color: 0xbac8b0, alpha: 1 })
-          .stroke({ width: 7, color: 0x60a3a7, alpha: .38 });
+        if (!raster) {
+          continents.poly(polygonPoints(ring))
+            .fill({ color: 0xbac8b0, alpha: 1 })
+            .stroke({ width: 7, color: 0x60a3a7, alpha: .38 });
+        }
       }
     }
     continents.eventMode = "none";
@@ -304,11 +363,13 @@ export function StrategyMap({
       const siege = attack && attacker ? borderProgress(game,province.id) : 0;
       for (const ring of geometry.polygons) {
         const graphics = new Graphics();
-        graphics.poly(polygonPoints(ring)).fill({ color, alpha: 1 })
-          .stroke({ color: highlighted ? 0xffe69b : 0x4e6253,
-            width: highlighted ? 3.2 : 1.15, alpha: highlighted ? 1 : .66 });
+        graphics.poly(polygonPoints(ring)).fill({ color, alpha: raster ? .28 : .96 })
+          .stroke({ color: highlighted ? 0xffdf8d : 0x405a50,
+            width: highlighted ? 2.6 : .8, alpha: highlighted ? 1 : (raster ? .4 : .65) });
         graphics.eventMode = "static";
         graphics.cursor = destinationMode ? "crosshair" : "pointer";
+        graphics.on("pointerover", () => setHoveredProvince(province.id));
+        graphics.on("pointerout", () => setHoveredProvince((id) => id === province.id ? null : id));
         graphics.on("pointertap", () => {
           if (performance.now() - dragTimeRef.current > 220) clickRef.current(province.id);
         });
@@ -354,7 +415,7 @@ export function StrategyMap({
       // Tiny deterministic terrain strokes lend the land an organic relief texture.
       const rand = random(hash(province.id));
       const bbox = geographicBounds(province.id);
-      if (bbox && zoom >= .77) {
+      if (!raster && bbox && zoom >= 1.7) {
         const detail = new Graphics();
         for (let n = 0; n < (province.terrain === "mountains" ? 46 : 25); n++) {
           const lon = bbox.minX + (bbox.maxX - bbox.minX) * rand();
@@ -562,7 +623,7 @@ export function StrategyMap({
     };
     animate();
     return ()=>cancelAnimationFrame(frame);
-  }, [game, selectedProvinceId, selectedDivisionId, destinationMode, zoom, ready, viewportRevision]);
+  }, [game, selectedProvinceId, selectedDivisionId, destinationMode, zoom, ready, viewportRevision, terrainReady]);
 
   return (
     <div ref={mountRef} className="strategy-map" role="application"
@@ -575,7 +636,9 @@ export function StrategyMap({
       }}
       aria-label="Interactive geographically shaped Southeast Asia provinces">
       {!ready && <div className="map-loading">Loading strategic theater…</div>}
-      <div className="map-watermark">NATURAL EARTH COASTLINES · STYLIZED STRATEGIC PROVINCES</div>
+      {hoveredProvince && game.provinces[hoveredProvince] && hoveredProvince !== selectedProvinceId &&
+        <div className="map-hover-label">{game.provinces[hoveredProvince].name} · {NATION_BY_ID[game.provinces[hoveredProvince].owner].name}</div>}
+      <div className="map-watermark">TERRAIN: OPENFRONT (CC BY-SA 4.0) · STRATEGIC REGIONS: IRON MERIDIAN</div>
     </div>
   );
 }
