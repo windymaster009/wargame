@@ -313,7 +313,7 @@ export function StrategyMap({
     }
 
     if (zoom > .85) {
-      for (const [nationId, [label, lon, lat]] of Object.entries(NATION_LABELS)) {
+      for (const [label, lon, lat] of Object.values(NATION_LABELS)) {
         const position = mapPoint(lon as number, lat as number);
         const heading = new Text({
           text: label as string,
