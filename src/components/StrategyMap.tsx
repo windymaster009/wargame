@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { geography, MAP_WIDTH, MAP_HEIGHT, mapPoint, provinceCenter, geographicBounds } from "../game/geography";
 import { NATIONS, NATION_BY_ID } from "../game/map";
+import { MARCH_TICKS } from "../game/engine";
 import type { GameState, Terrain } from "../game/types";
 
 interface Props {
@@ -12,6 +13,8 @@ interface Props {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   onProvinceClick: (provinceId: string) => void;
+  onDivisionSelect: (divisionId: number) => void;
+  onDivisionDrop: (divisionId: number, provinceId: string) => void;
 }
 
 function polygonPoints(points: number[][]): number[] {
@@ -43,6 +46,31 @@ function pointInside(p: [number, number], polygon: number[][]) {
   return inside;
 }
 
+function interpolate(a: {x:number;y:number}, b: {x:number;y:number}, t: number) {
+  return { x: a.x + (b.x-a.x) * t, y: a.y + (b.y-a.y) * t };
+}
+function positionForDivision(game: GameState, unitId: number) {
+  const unit = game.divisions.find((d) => d.id === unitId);
+  if (!unit) return {x:0,y:0};
+  const start = provinceCenter(unit.provinceId);
+  const order = game.orders.find((o) => o.divisionId === unitId);
+  if (!order) return start;
+  const targetId = order.kind === "march" ? order.path[order.cursor] : order.destination;
+  if (!game.provinces[targetId]) return start;
+  const destination = provinceCenter(targetId);
+  // Attacking troops stay at the border until the local defenders are defeated.
+  if (order.kind === "attack") return interpolate(start,destination,.47);
+  return interpolate(start,destination,Math.min(.98,order.progress/MARCH_TICKS));
+}
+function borderProgress(game: GameState, provinceId: string) {
+  const p=game.provinces[provinceId];
+  if (!p) return 0;
+  const defenders=game.divisions.filter((d)=>d.provinceId===provinceId&&d.owner===p.owner);
+  const max=p.maxGarrison + defenders.reduce((sum,d)=>sum+d.maxStrength,0);
+  const remaining=p.garrison + defenders.reduce((sum,d)=>sum+d.strength,0);
+  return max > 0 ? Math.max(0,Math.min(1,1-remaining/max)) : 0;
+}
+
 const TERRAIN_COLOR: Record<Terrain, number> = {
   plains: 0xc8d1ad, hills: 0xbac1a6, mountains: 0xa5b2a3,
   forest: 0xacc4a7, coast: 0xc9d2b5,
@@ -55,18 +83,29 @@ const NATION_LABELS: Record<string, [string, number, number]> = {
 };
 
 export function StrategyMap({
-  game, selectedProvinceId, selectedDivisionId, destinationMode, zoom, onProvinceClick, onZoomChange,
+  game, selectedProvinceId, selectedDivisionId, destinationMode, zoom, onProvinceClick,
+  onDivisionSelect, onDivisionDrop, onZoomChange,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const worldRef = useRef<Container | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
   const clickRef = useRef(onProvinceClick);
+  const selectUnitRef = useRef(onDivisionSelect);
+  const dropUnitRef = useRef(onDivisionDrop);
+  const unitDragRef = useRef<number | null>(null);
+  const originRef = useRef<{x:number;y:number}|null>(null);
+  const dragLineRef = useRef<Graphics | null>(null);
+  const gameRef = useRef(game);
   const zoomRef = useRef(onZoomChange);
   const dragTimeRef = useRef(0);
+  const hitRef = useRef<(x:number,y:number)=>string|null>(()=>null);
   const [ready, setReady] = useState(false);
   const [viewportRevision, setViewportRevision] = useState(0);
   clickRef.current = onProvinceClick;
+  selectUnitRef.current = onDivisionSelect;
+  dropUnitRef.current = onDivisionDrop;
+  gameRef.current = game;
   zoomRef.current = onZoomChange;
 
   useEffect(() => {
@@ -100,7 +139,32 @@ export function StrategyMap({
         if (event.button !== 0) return;
         dragging = true; moved = false; lastX = event.clientX; lastY = event.clientY;
       };
+      const hitAt = (clientX: number, clientY: number): string | null => {
+        const world = worldRef.current;
+        if (!world) return null;
+        const rect = app.canvas.getBoundingClientRect();
+        const mapX = (clientX - rect.left - world.position.x) / world.scale.x;
+        const mapY = (clientY - rect.top - world.position.y) / world.scale.y;
+        const lon = 92 + (mapX - 95) / 51;
+        const lat = 26.7 - (mapY - 55) / 32.5;
+        for (const [id, geometry] of Object.entries(geography.provinces)) {
+          if (geometry.polygons.some((p)=>pointInside([lon,lat],p))) return id;
+        }
+        return null;
+      };
+      hitRef.current = hitAt;
       const onMove = (event: PointerEvent) => {
+        if (unitDragRef.current !== null) {
+          const world=worldRef.current, origin=originRef.current, guide=dragLineRef.current;
+          if (world && origin && guide) {
+            const rect=app.canvas.getBoundingClientRect();
+            const point={x:(event.clientX-rect.left-world.position.x)/world.scale.x,
+                         y:(event.clientY-rect.top-world.position.y)/world.scale.y};
+            guide.clear().moveTo(origin.x,origin.y).lineTo(point.x,point.y)
+              .stroke({color:0xffe0a1,width:3,alpha:.94});
+          }
+          return;
+        }
         if (!dragging) return;
         const dx = event.clientX - lastX, dy = event.clientY - lastY;
         if (Math.abs(dx) + Math.abs(dy) >= 2) {
@@ -111,7 +175,21 @@ export function StrategyMap({
         }
         lastX = event.clientX; lastY = event.clientY;
       };
-      const onUp = () => { if (moved) dragTimeRef.current = performance.now(); dragging = false; };
+      const onUp = (event: PointerEvent) => {
+        if (unitDragRef.current !== null) {
+          const id=unitDragRef.current;
+          unitDragRef.current = null;
+          const province=hitAt(event.clientX,event.clientY);
+          dragLineRef.current?.clear();
+          originRef.current = null;
+          dragTimeRef.current = performance.now();
+          if (province) dropUnitRef.current(id,province);
+          dragging=false;
+          return;
+        }
+        if (moved) dragTimeRef.current = performance.now();
+        dragging = false;
+      };
       const onWheel = (event: WheelEvent) => {
         event.preventDefault();
         zoomRef.current(Math.max(0.65, Math.min(2.8, Math.round((zoomRefValue.current + (event.deltaY < 0 ? 0.12 : -0.12)) * 100) / 100)));
@@ -155,6 +233,7 @@ export function StrategyMap({
     );
     app.stage.addChild(world);
     worldRef.current = world;
+    dragLineRef.current = null;
 
     // Sea chart: readable map under the land without using third-party game assets.
     const sea = new Graphics();
@@ -194,6 +273,9 @@ export function StrategyMap({
       const tone = TERRAIN_COLOR[province.terrain];
       const color = mixColor(tone, ownNationColor, province.id === selectedProvinceId ? .66 : .44);
       const highlighted = selectedProvinceId === province.id;
+      const attack = game.orders.find((order) => order.kind==="attack" && order.destination===province.id);
+      const attacker = attack && game.divisions.find((d)=>d.id===attack.divisionId);
+      const siege = attack && attacker ? borderProgress(game,province.id) : 0;
       for (const ring of geometry.polygons) {
         const graphics = new Graphics();
         graphics.poly(polygonPoints(ring)).fill({ color, alpha: 1 })
@@ -205,6 +287,14 @@ export function StrategyMap({
           if (performance.now() - dragTimeRef.current > 220) clickRef.current(province.id);
         });
         world.addChild(graphics);
+        if (attacker && siege > 0) {
+          const occupation = new Graphics();
+          occupation.poly(polygonPoints(ring)).fill({
+            color:NATION_BY_ID[attacker.owner].color,alpha:Math.min(.68,siege*.65)
+          });
+          occupation.eventMode="none";
+          world.addChild(occupation);
+        }
       }
       // Tiny deterministic terrain strokes lend the land an organic relief texture.
       const rand = random(hash(province.id));
@@ -285,24 +375,8 @@ export function StrategyMap({
         text.eventMode = "none";
         world.addChild(text);
       }
-      if (divisions.length) {
-        const mine = divisions.some((unit) => unit.owner === ownId);
-        const selectedArmy = divisions.some((d) => d.id === selectedDivisionId);
-        const marker = new Graphics();
-        marker.roundRect(label.x - 17, label.y + 1, 34, 21, 3)
-          .fill({ color: mine ? 0x162922 : 0x314047, alpha: .95 })
-          .stroke({ color: selectedArmy ? 0xffed9d : 0xe6d9b7, width: selectedArmy ? 2.4 : 1.1 });
-        marker.eventMode = "none";
-        world.addChild(marker);
-        const count = new Text({
-          text: "Ⅱ " + divisions.length,
-          style: { fontFamily: "Arial", fontSize: 11, fontWeight: "bold", fill: 0xf7ead1 },
-        });
-        count.anchor.set(.5);
-        count.position.set(label.x, label.y + 11);
-        count.eventMode = "none";
-        world.addChild(count);
-      }
+      // Divisions are drawn as individual draggable counters below,
+      // not a single static province total.
       if (province.fort > 0) {
         const fort = new Text({ text: "◆" + province.fort,
           style: { fontFamily: "Arial", fontSize: 10, fontWeight: "bold", fill: 0x384b35 } });
@@ -311,6 +385,55 @@ export function StrategyMap({
         world.addChild(fort);
       }
     }
+
+    // Draw individual divisions ABOVE map labels so the counters are draggable.
+    const unitsByProvince = new Map<string,number>();
+    for (const unit of game.divisions) {
+      const stack=unitsByProvince.get(unit.provinceId)??0;
+      unitsByProvince.set(unit.provinceId,stack+1);
+      const active=game.orders.find((order)=>order.divisionId===unit.id);
+      const pos=positionForDivision(game,unit.id);
+      const offsetX=(stack % 3 - 1)*24;
+      const offsetY=Math.floor(stack / 3)*24;
+      const x=pos.x+offsetX,y=pos.y+offsetY;
+      const mine=unit.owner===ownId;
+      const selected=unit.id===selectedDivisionId;
+      const counter=new Graphics();
+      counter.roundRect(x-15,y-10,30,20,3)
+        .fill({color:mine?0x183729:0x303b46,alpha:.96})
+        .stroke({color:selected?0xffdf81:(mine?0xc4e0bb:0xe6bca1),width:selected?2.4:1.2});
+      counter.eventMode=mine?"static":"none";
+      counter.cursor=mine?"grab":"default";
+      if (mine) {
+        counter.on("pointerdown",()=>{
+          unitDragRef.current=unit.id;
+          originRef.current={x,y};
+          selectUnitRef.current(unit.id);
+        });
+      }
+      world.addChild(counter);
+      const text=new Text({text:"Ⅱ "+Math.max(1,Math.round(unit.strength/100)),
+        style:{fontFamily:"Arial",fontSize:10,fontWeight:"bold",fill:0xf8edd3}});
+      text.anchor.set(.5);
+      text.position.set(x,y);
+      text.eventMode="none";
+      world.addChild(text);
+      if(active?.kind==="attack") {
+        const target=game.provinces[active.destination];
+        if(target) {
+          const percent=borderProgress(game,target.id);
+          const bar=new Graphics();
+          bar.roundRect(x-21,y+14,42,7,2).fill(0x19241e);
+          bar.roundRect(x-20,y+15,40*percent,5,1).fill(0xf0b778);
+          bar.eventMode="none";
+          world.addChild(bar);
+        }
+      }
+    }
+    const dragGuide = new Graphics();
+    dragGuide.eventMode = "none";
+    world.addChild(dragGuide);
+    dragLineRef.current = dragGuide;
 
     if (zoom > .85) {
       for (const [label, lon, lat] of Object.values(NATION_LABELS)) {
@@ -339,7 +462,15 @@ export function StrategyMap({
   }, [game, selectedProvinceId, selectedDivisionId, destinationMode, zoom, ready, viewportRevision]);
 
   return (
-    <div ref={mountRef} className="strategy-map" role="application" aria-label="Interactive geographically shaped Southeast Asia provinces">
+    <div ref={mountRef} className="strategy-map" role="application"
+      onDragOver={(event)=>event.preventDefault()}
+      onDrop={(event)=>{
+        event.preventDefault();
+        const id=Number(event.dataTransfer.getData("application/x-iron-division"));
+        const province=hitRef.current(event.clientX,event.clientY);
+        if (id>0&&province) dropUnitRef.current(id,province);
+      }}
+      aria-label="Interactive geographically shaped Southeast Asia provinces">
       {!ready && <div className="map-loading">Loading strategic theater…</div>}
       <div className="map-watermark">NATURAL EARTH COASTLINES · STYLIZED STRATEGIC PROVINCES</div>
     </div>
