@@ -1,4 +1,5 @@
 import type { Nation, NationId, Province, ProvinceDefinition, Terrain } from "./types";
+import { geography } from "./geography";
 
 export const NATIONS: Nation[] = [
   { id: "KHM", name: "Cambodia", capital: "phnom-penh", color: 0xc5a46b, flag: "🇰🇭", adjective: "Khmer" },
@@ -64,20 +65,20 @@ export const PROVINCE_DEFINITIONS: ProvinceDefinition[] = seeds.map(
 export const PROVINCE_BY_ID: Record<string, ProvinceDefinition> =
   Object.fromEntries(PROVINCE_DEFINITIONS.map((province) => [province.id, province]));
 
-const axialNeighbors: ReadonlyArray<[number, number]> = [
-  [1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1],
-];
+/**
+ * Territory polygons and reciprocal borders are generated from simplified,
+ * public-domain Natural Earth country outlines. This is a strategic partition,
+ * not an administrative boundary dataset.
+ */
 export function makeProvinces(): Record<string, Province> {
-  const byCoordinate = new Map<string, string>();
-  for (const p of PROVINCE_DEFINITIONS) byCoordinate.set(p.q + "," + p.r, p.id);
   return Object.fromEntries(
-    PROVINCE_DEFINITIONS.map((p) => [
-      p.id,
+    PROVINCE_DEFINITIONS.map((province) => [
+      province.id,
       {
-        ...p, owner: p.originalOwner, fort: 0,
-        neighbors: axialNeighbors
-          .map(([q, r]) => byCoordinate.get((p.q + q) + "," + (p.r + r)))
-          .filter((id): id is string => id !== undefined),
+        ...province,
+        owner: province.originalOwner,
+        fort: 0,
+        neighbors: [...geography.provinces[province.id].neighbors],
       },
     ]),
   );
@@ -90,10 +91,3 @@ export const TERRAIN_LABEL: Record<Terrain, string> = {
 export const TERRAIN_DEFENSE: Record<Terrain, number> = {
   plains: 1, coast: 1.08, forest: 1.22, hills: 1.3, mountains: 1.58,
 };
-export const HEX_RADIUS = 44;
-export function axialToWorld(q: number, r: number) {
-  return {
-    x: 205 + Math.sqrt(3) * HEX_RADIUS * (q + r / 2),
-    y: 108 + 1.5 * HEX_RADIUS * r,
-  };
-}
