@@ -420,7 +420,13 @@ export function StrategyMap({
       const isCapital = NATIONS.some((n) => n.capital === province.id);
       const selected = province.id === selectedProvinceId;
       const divisions = game.divisions.filter((d) => d.provinceId === province.id);
-      if (selected || isCapital || zoom > 1.05) {
+      // Keep the 25 smaller Cambodian regions legible: labels reveal as the
+      // player zooms in; selected areas and capitals are always visible.
+      const showLabel = selected || isCapital ||
+        zoom > 2.1 ||
+        (zoom > 1.48 && (province.originalOwner !== "KHM" || hash(province.id)%2===0)) ||
+        (zoom > 1.15 && hash(province.id)%5===0);
+      if (showLabel) {
         const text = new Text({
           text: province.name,
           style: selected ? selectedLabelStyle : labelStyle,
