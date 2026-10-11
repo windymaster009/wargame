@@ -166,7 +166,7 @@ function battle(state: GameState, order: ArmyOrder): GameState {
   const defendingDivisions = state.divisions.filter((d) =>
     d.provinceId === target.id && d.owner === target.owner);
   const defenseCount = defendingDivisions.reduce((sum, d) => sum + d.strength, 0);
-  const defense = (defenseCount + 160 + target.fort * 230) * TERRAIN_DEFENSE[target.terrain];
+  const defense = (defenseCount + 160 + target.fort * 400) * TERRAIN_DEFENSE[target.terrain];
   const attack = attacker.strength * (1 + attacker.experience * 0.035);
   const success = attack > defense * 1.05;
   if (success) {
