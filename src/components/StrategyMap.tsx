@@ -375,9 +375,22 @@ export function StrategyMap({
     }
 
     const border = new Graphics();
-    for (const nation of NATIONS) {
-      for (const ring of geography.countries[nation.id] ?? []) {
-        border.poly(polygonPoints(ring)).stroke({ color: 0x273e39, width: 2.3, alpha: .78 });
+    if (game.status === "select") {
+      for (const nation of NATIONS) {
+        for (const ring of geography.countries[nation.id] ?? []) {
+          border.poly(polygonPoints(ring)).stroke({ color: 0x273e39, width: 2.3, alpha: .78 });
+        }
+      }
+    } else {
+      // Frontlines follow current province ownership rather than permanently
+      // drawing the pre-war national outline after conquests.
+      for (const province of Object.values(game.provinces)) {
+        if (!province.neighbors.some((id)=>game.provinces[id]?.owner!==province.owner)) continue;
+        for (const ring of geography.provinces[province.id]?.polygons ?? []) {
+          border.poly(polygonPoints(ring)).stroke({
+            color: 0x263d35, width: 2.25, alpha: .68,
+          });
+        }
       }
     }
     border.eventMode = "none";
