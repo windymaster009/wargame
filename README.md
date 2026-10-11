@@ -33,7 +33,7 @@ Open **http://localhost:5173**. The default port is different from the old OpenF
 src/
   game/
     types.ts          # Shared game models
-    map.ts            # Original stylized province data, adjacency and terrain
+    map.ts            # Province definitions and geographic adjacency / terrain\n    geography.json     # Geographic country boundaries and generated strategy polygons\n    geography.ts       # Geographic projection and map helpers
     engine.ts         # Pure simulation: recruiting, economy, orders, combat, capture
     engine.test.ts    # Deterministic simulation tests
   components/
@@ -56,7 +56,7 @@ npm run build
 ## Current scope and caveats
 
 - This is a **single-player vertical slice**, not yet a full Hearts of Iron alternative.
-- The hex province layout is intentionally **stylized**, only loosely inspired by the geography of mainland Southeast Asia; its borders are not real administrative or international boundaries.
+- The map uses simplified **Natural Earth geographic country coastlines** and 35 generated, irregular **strategic provinces**. Country outlines are geographically recognizable; internal strategic provinces are fictional, not official administrative boundaries.
 - Enemy countries have stationary defenders; full diplomacy, supply, logistics, generals, research, tanks, AI frontlines, multiplayer networking, sound and persistent saves are not yet implemented.
 - Battles are simplified deterministic calculations rather than full divisional combat simulation.
 - Local state resets on refresh. Multiplayer will require an authoritative backend and save/replay protocol.
@@ -70,3 +70,18 @@ npm run build
 5. Authoritative WebSocket multiplayer.
 
 All source code and map artwork in this repository are original, with independent branding. No copyrighted Hearts of Iron or OpenFront assets are included.
+
+
+## Geographic display and map controls
+
+The visual battlefield is no longer a hex grid. It renders recognizable,
+simplified mainland Southeast Asian coastlines and irregular strategic regions.
+Scroll to zoom; drag with the left mouse button to pan. Click a territory
+to select it; province neighbors follow shared geographic borders.
+
+The coastlines are sourced from Natural Earth public-domain geographic
+outlines via [johan/world.geo.json](https://github.com/johan/world.geo.json).
+Internal province borders are **procedurally generated for gameplay**, not
+official province or international administrative boundaries.
+The territory rendering and HUD are original; no OpenFront or Hearts of Iron
+artwork was copied.
