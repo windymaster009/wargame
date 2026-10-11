@@ -99,6 +99,8 @@ export function makeProvinces(): Record<string, Province> {
         ...province,
         owner: province.originalOwner,
         fort: 0,
+        garrison: 180 + province.industry * 70,
+        maxGarrison: 180 + province.industry * 70,
         neighbors: [...geography.provinces[province.id].neighbors],
       },
     ]),
