@@ -18,11 +18,11 @@ Open **http://localhost:5173**. The default port is different from the old OpenF
 ## Play
 
 1. Choose a nation (Cambodia, Thailand, Vietnam, Laos, Myanmar, Malaysia).
-2. Click an owned province to inspect terrain, buildings and divisions.
+2. Click an owned province to inspect terrain, local defending manpower, buildings and divisions.
 3. Click **Recruit Infantry** to spend **900 manpower + 100 equipment** and deploy a real division.
-4. Select a division in the left sidebar, then click **Issue Move / Attack Order**.
-5. Click any connected friendly province to march, or an **adjacent** enemy province to attack.
-6. Allow the clock to advance (or set 2× / 3×). Winning battles captures territory; fortifications, terrain and enemy divisions affect combat.
+4. **Drag a division counter directly on the map** to issue orders. You can also drag a division from the army list onto the map, or keep using the optional **Issue Move / Attack Order** button.
+5. Drop on any connected friendly province to march along friendly territory, or an **adjacent** enemy province to begin a border offensive.
+6. Watch the division **move smoothly between waypoints** as the clock advances. Attacking divisions **hold on the friendly side of the border**, slowly deplete provincial garrisons and defending divisions, and spread a soft occupation front across territory before capture.
 7. Use **Fortify Province** to improve a defensive position (175 equipment, up to level 3). Pause, adjust speed, and track campaign reports.
 
 **Starting units:** two player divisions and one defending division for each other nation. Enemy divisions defend but do not yet receive AI orders.
@@ -56,7 +56,7 @@ npm run build
 ## Current scope and caveats
 
 - This is a **single-player vertical slice**, not yet a full Hearts of Iron alternative.
-- The map uses simplified **Natural Earth geographic country coastlines** and 35 generated, irregular **strategic provinces**. Country outlines are geographically recognizable; internal strategic provinces are fictional, not official administrative boundaries.
+- The map uses simplified **Natural Earth geographic country coastlines** and 55 irregular **strategic provinces**, including **25 named Cambodian provinces/municipalities**. Country outlines are geographically recognizable; **internal borders are approximate Voronoi game regions, not official administrative boundaries.** Cambodian place names and provincial center coordinates are derived from the [Open Admin Data Cambodia dataset](https://github.com/open-admin-data/cambodia-administrative-divisions) (CC BY 4.0).
 - Enemy countries have stationary defenders; full diplomacy, supply, logistics, generals, research, tanks, AI frontlines, multiplayer networking, sound and persistent saves are not yet implemented.
 - Battles are simplified deterministic calculations rather than full divisional combat simulation.
 - Local state resets on refresh. Multiplayer will require an authoritative backend and save/replay protocol.
@@ -85,3 +85,32 @@ Internal province borders are **procedurally generated for gameplay**, not
 official province or international administrative boundaries.
 The territory rendering and HUD are original; no OpenFront or Hearts of Iron
 artwork was copied.
+
+
+## Phase 0.2 – direct orders and sustained border battles
+
+- **25 named Cambodian provinces** are individually selectable and own their own garrison.
+  The strategic borders are approximate and will be replaced by official polygons
+  in a future data-accuracy pass.
+- Drag and release a map infantry counter, or drag its sidebar row, onto a territory.
+  The engine checks ownership, adjacency, and eligible routes.
+- Friendly marching is now **8 simulation ticks per neighboring province**,
+  rendered with a smoothly interpolated counter. No instant long-distance jump.
+- Enemy offensives continue over several ticks. Provincial garrisons and field
+  divisions take casualties; attackers stay at the frontier and may be defeated.
+  Captured ground gradually shades into the attacking nation's color until the
+  defending manpower runs out and control transfers.
+- Fortifications and terrain reduce attackers' progress and increase their losses.
+- The province panel shows local manpower, border battle activity, and progress.
+- Dragging without movement only selects the unit; it doesn't issue a new order.
+
+These are original, simplified strategy mechanics. Real province boundary imports,
+multi-unit fronts, reinforcement/supply, and active enemy commanders remain future
+work.
+
+**Map sources:** country outlines from Natural Earth (public domain via
+[johan/world.geo.json](https://github.com/johan/world.geo.json)); Cambodian
+province names and point coordinates from
+[open-admin-data](https://github.com/open-admin-data/cambodia-administrative-divisions)
+(CC BY 4.0). Voronoi internal borders are generated gameplay geometry, not official
+administrative surveys.
