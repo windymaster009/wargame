@@ -91,6 +91,19 @@ export default function App() {
     if (apply(result)) setNotice("Fortification built. Defenders gain an advantage here.");
   };
 
+  // Direct map gesture: drag a counter over a friendly or adjacent hostile region.
+  const commandDivision = (unitId: number, provinceId: string) => {
+    const result = orderDivision(game, unitId, provinceId);
+    if (apply(result)) {
+      setSelectedDivisionId(unitId);
+      setSelectedProvinceId(provinceId);
+      setDestinationMode(false);
+      setNotice(result.state.orders.find((o) => o.divisionId === unitId)?.kind === "attack"
+        ? "Attack ordered. Division holds at the border while defenders resist."
+        : "March ordered. Division advances between waypoints over time.");
+    }
+  };
+
   const selectUnit = (unitId: number) => {
     const unit = game.divisions.find((division) => division.id === unitId);
     if (!unit) return;
@@ -149,6 +162,7 @@ export default function App() {
               {activeTab === "armies" ? (
                 <div className="army-list">
                   <div className="section-title"><span>FIELD DIVISIONS</span><b>{ownedDivisionList.length}</b></div>
+                  <p className="muted tiny">Drag a division counter on the battlefield to give orders.</p>
                   {ownedDivisionList.length === 0 && <p className="muted">Recruit infantry in one of your provinces to establish an army.</p>}
                   {ownedDivisionList.map((division) => {
                     const order = game.orders.find((item) => item.divisionId === division.id);
@@ -187,7 +201,8 @@ export default function App() {
         <main className="map-area">
           <StrategyMap game={game} selectedProvinceId={selectedProvinceId}
             selectedDivisionId={selectedDivisionId} destinationMode={destinationMode}
-            zoom={zoom} onZoomChange={setZoom} onProvinceClick={onProvinceClick} />
+            zoom={zoom} onZoomChange={setZoom} onProvinceClick={onProvinceClick}
+            onDivisionSelect={selectUnit} onDivisionDrop={commandDivision} />
 
           <div className="map-top-left">
             <span className="map-label">● LIVE TACTICAL MAP</span>
@@ -247,6 +262,7 @@ export default function App() {
               <div><span>DEFENSE</span><strong>×{TERRAIN_DEFENSE[province.terrain].toFixed(2)}</strong></div>
               <div><span>INDUSTRY</span><strong>{province.industry} <small>/ day</small></strong></div>
               <div><span>FORT LEVEL</span><strong>{province.fort} / 3</strong></div>
+              <div><span>LOCAL DEFENDERS</span><strong>{number(province.garrison)} / {number(province.maxGarrison)}</strong></div>
             </div>
             {provinceOwned && game.status === "playing" && <>
               <button className="gold-button" onClick={recruit}>+ RECRUIT INFANTRY <small>{RECRUIT_MANPOWER} M / {RECRUIT_EQUIPMENT} E</small></button>
@@ -271,7 +287,7 @@ export default function App() {
               {destinationMode ? "CHOOSE MAP TARGET…" : "ISSUE MOVE / ATTACK ORDER"}
             </button>
             {currentOrder && <button className="outline-button" onClick={() => setGame((current) => cancelOrder(current, selectedDivision.id))}>CANCEL CURRENT ORDER</button>}
-            <p className="muted tiny">Select a friendly province to march, or an adjacent hostile province to attack.</p>
+            <p className="muted tiny">Drag your division counter on the map onto friendly land to march or an adjacent enemy region to attack. This button is an optional alternative.</p>
           </> : <p className="muted">Select one of your divisions from the army list or a friendly province.</p>}
           <div className="divider" />
           <div className="section-title">FIELD REPORTS</div>
