@@ -15,7 +15,7 @@ export default function App() {
   const [selectedProvinceId, setSelectedProvinceId] = useState<string | null>(null);
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
   const [destinationMode, setDestinationMode] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(1.14);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"armies" | "dispatch">("armies");
 
@@ -187,16 +187,16 @@ export default function App() {
         <main className="map-area">
           <StrategyMap game={game} selectedProvinceId={selectedProvinceId}
             selectedDivisionId={selectedDivisionId} destinationMode={destinationMode}
-            zoom={zoom} onProvinceClick={onProvinceClick} />
+            zoom={zoom} onZoomChange={setZoom} onProvinceClick={onProvinceClick} />
 
           <div className="map-top-left">
             <span className="map-label">● LIVE TACTICAL MAP</span>
             <span>{Object.keys(game.provinces).length} PROVINCES / 6 NATIONS</span>
           </div>
           <div className="zoom-box">
-            <button aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(1.8, +(z + 0.15).toFixed(2)))}>+</button>
+            <button aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2.8, +(z + 0.15).toFixed(2)))}>+</button>
             <span>{Math.round(zoom * 100)}%</span>
-            <button aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.75, +(z - 0.15).toFixed(2)))}>−</button>
+            <button aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.65, +(z - 0.15).toFixed(2)))}>−</button>
           </div>
           <div className="legend">
             {NATIONS.map((item) => <span key={item.id}><i style={{ backgroundColor: "#" + item.color.toString(16).padStart(6, "0") }} />{item.name}</span>)}
