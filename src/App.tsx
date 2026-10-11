@@ -202,7 +202,7 @@ export default function App() {
               )}
               <div className="sidebar-footer">
                 <span className="online-dot" /> SIMULATION {game.paused ? "PAUSED" : "ACTIVE"}
-                <span className="build-label">BUILD 0.1</span>
+                <span className="build-label">BUILD 0.2</span>
               </div>
             </>
           ) : <div className="sidebar-empty">Choose your nation to enter the operational theater.</div>}
