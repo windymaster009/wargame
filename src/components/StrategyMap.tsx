@@ -268,8 +268,11 @@ export function StrategyMap({
         canvas.height = OPENFRONT_MAP_HEIGHT;
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas 2D context unavailable");
+        // ImageData requires an ArrayBuffer-backed clamped view under TS 5.9.
+        const imagePixels = new Uint8ClampedArray(new ArrayBuffer(rgba.byteLength));
+        imagePixels.set(rgba);
         context.putImageData(
-          new ImageData(rgba, OPENFRONT_MAP_WIDTH, OPENFRONT_MAP_HEIGHT), 0, 0,
+          new ImageData(imagePixels, OPENFRONT_MAP_WIDTH, OPENFRONT_MAP_HEIGHT), 0, 0,
         );
         canvasTexture = new Texture({ source: new CanvasSource({ resource: canvas }) });
         if (disposed) {
