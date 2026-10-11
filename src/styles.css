@@ -174,3 +174,94 @@ button:focus-visible { outline: 2px solid #dec27d; outline-offset: 3px; }
   .map-watermark { display: none; }
 }
 @media(prefers-reduced-motion:reduce) { .nation-card { transition: none; } }
+
+/* Geographic battlefield — immersive, game-first layout inspired by modern
+   real-time strategy HUDs, with original branding and territory geometry. */
+.topbar {
+  flex-basis: 59px;
+  min-height: 59px;
+  padding-inline: 16px;
+  background: linear-gradient(90deg,#0b1c20f7,#152926e9 48%,#102026f7);
+  border-bottom: 1px solid #57736890;
+  box-shadow: 0 5px 20px #0005;
+}
+.brand-mark { width: 36px; height: 36px; border-radius: 6px; background: #203b34; }
+.brand-name { letter-spacing: .14em; }
+.campaign-badge { color: #c7d9c9; }
+.workspace { position: relative; display: block; flex: 1; min-height: 0; overflow: hidden; }
+.map-area { position: absolute; inset: 0; background: #123648; overflow: hidden; }
+.sidebar,.details-panel {
+  position: absolute;
+  z-index: 8;
+  top: 13px;
+  width: 267px;
+  max-height: calc(100% - 27px);
+  overflow: auto;
+  border: 1px solid #819c8a80;
+  border-radius: 9px;
+  background: #12241fe9;
+  box-shadow: 0 12px 36px #020e1190;
+  backdrop-filter: blur(13px);
+}
+.sidebar { left: 13px; }
+.details-panel { right: 13px; width: 292px; padding: 16px 15px 21px; }
+.sidebar-heading { padding: 17px 17px 13px; }
+.sidebar-heading h1 { font-size: 22px; margin-block: 9px 4px; }
+.resources { padding: 10px; margin: 0; gap: 5px; }
+.resources div { padding: 9px; min-height: 64px; background: #1d332dd9; }
+.resources div:last-child { min-height: 53px; }
+.resources strong { font-size: 18px; margin-top: 4px; }
+.sidebar-tabs { margin-top: 2px; }
+.sidebar-tabs button { padding: 10px; }
+.army-list { padding: 12px; }
+.division-row { padding: 7px; }
+.sidebar-footer { background: #162c26f5; }
+.details-title { padding-bottom: 11px; margin-bottom: 10px; }
+.province-heading { margin: 13px 0; }
+.province-heading h2 { font-size: 21px; }
+.info-grid { margin-bottom: 11px; }
+.info-grid > div { min-height: 57px; padding: 9px; }
+.gold-button,.outline-button { padding: 10px; }
+.divider { margin: 15px 0 12px; }
+.map-top-left {
+  left: 295px; top: 19px; padding: 9px 13px;
+  border: 1px solid #8bb0a83f;
+  border-radius: 6px;
+  background: #102831d4;
+  backdrop-filter: blur(8px);
+}
+.map-top-left span:last-child { color: #b8ccca; }
+.zoom-box { right: 321px; top: 19px; background: #132d35e8; }
+.legend { left: 295px; bottom: 19px; background: #102d32dc; border-color: #76918e70; }
+.order-prompt { z-index: 10; bottom: 73px; background: #173128f2; }
+.map-watermark { right: 321px; font-size: 8px; }
+.selection-overlay,.result-overlay { background: #061e2396; backdrop-filter: blur(3px); }
+.selection-panel { background: linear-gradient(140deg,#183a34 0%,#101f23 100%); border-color: #baa776; }
+.notice { top: 78px; z-index: 12; }
+@media(max-width:1150px) and (min-width:951px) {
+  .sidebar { width: 236px; }
+  .details-panel { width: 244px; }
+  .map-top-left,.legend { left: 258px; }
+  .zoom-box,.map-watermark { right: 266px; }
+}
+@media(max-width:950px) {
+  .app-shell { height: auto; overflow: visible; }
+  .workspace { display: flex; flex-direction: column; overflow: visible; }
+  .map-area { position: relative; inset: auto; order: 1; min-height: 480px; height: 66dvh; }
+  .sidebar,.details-panel {
+    position: relative; top: auto; left: auto; right: auto;
+    width: auto; max-height: none; border-radius: 0;
+    border-inline: none; box-shadow: none;
+  }
+  .sidebar { order: 2; }
+  .details-panel { order: 3; }
+  .map-top-left { left: 12px; top: 12px; padding: 7px; }
+  .zoom-box { right: 12px; top: 12px; }
+  .legend { left: 10px; bottom: 12px; max-width: 95%; }
+  .map-watermark { right: 12px; bottom: 59px; }
+}
+@media(max-width:540px) {
+  .map-top-left { font-size: 9px; }
+  .map-top-left span:last-child { display: none; }
+  .map-watermark { display: none; }
+}
