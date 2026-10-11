@@ -1,6 +1,6 @@
 import { makeProvinces, NATIONS, NATION_BY_ID, TERRAIN_DEFENSE } from "./map";
 import type {
-  ActionResult, ArmyOrder, Division, GameEvent, GameState, NationId, NationResources, Province,
+  ActionResult, ArmyOrder, Division, GameEvent, GameState, NationId, NationResources,
 } from "./types";
 
 export const RECRUIT_MANPOWER = 900;
