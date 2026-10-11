@@ -59,8 +59,24 @@ function positionForDivision(game: GameState, unitId: number) {
   const targetId = order.kind === "march" ? order.path[order.cursor] : order.destination;
   if (!game.provinces[targetId]) return start;
   const destination = provinceCenter(targetId);
-  // Attacking troops stay at the border until the local defenders are defeated.
-  if (order.kind === "attack") return interpolate(start,destination,.47);
+  // Stop on the issuing side of the real strategic border, not at the
+  // midpoint between two labels (which can lie far from their shared border).
+  if (order.kind === "attack") {
+    const region=geography.provinces[unit.provinceId];
+    if (!region) return interpolate(start,destination,.47);
+    const inside=(t:number)=>{
+      const point=interpolate(start,destination,t);
+      const lon=92+(point.x-95)/51,lat=26.7-(point.y-55)/32.5;
+      return region.polygons.some((ring)=>pointInside([lon,lat],ring));
+    };
+    let lo=0,hi=1;
+    if (!inside(0)) return interpolate(start,destination,.47);
+    for(let i=0;i<14;i++) {
+      const mid=(lo+hi)/2;
+      if(inside(mid))lo=mid;else hi=mid;
+    }
+    return interpolate(start,destination,Math.max(.04,lo-.035));
+  }
   return interpolate(start,destination,Math.min(.98,order.progress/MARCH_TICKS));
 }
 function borderProgress(game: GameState, provinceId: string) {
