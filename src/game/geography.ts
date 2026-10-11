@@ -13,7 +13,7 @@ export interface WorldGeography {
 }
 
 /** Generated strategic subdivisions over Natural Earth coastlines. */
-export const geography = raw as WorldGeography;
+export const geography = raw as unknown as WorldGeography;
 
 export const MAP_WIDTH = 1190;
 export const MAP_HEIGHT = 955;
