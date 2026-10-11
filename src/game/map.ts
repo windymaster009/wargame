@@ -14,10 +14,10 @@ export const NATION_BY_ID: Record<NationId, Nation> = Object.fromEntries(
 ) as Record<NationId, Nation>;
 
 /**
- * Purpose-made strategic hex provinces. They are geographically inspired,
- * NOT administrative polygons or survey-accurate national boundaries.
- *
- * Axial hex coordinates make adjacency deterministic without costly GIS.
+ * Strategic province metadata retains legacy q/r seed fields for backward
+ * compatibility; actual display polygons and movement adjacency now come
+ * from geography.json, generated over real Natural Earth country coastlines.
+ * Subdivisions remain fictional and are NOT official administrative borders.
  */
 const seeds: Array<[string, string, NationId, number, number, Terrain, number]> = [
   ["kachin", "Kachin", "MMR", 0, 0, "mountains", 2],
