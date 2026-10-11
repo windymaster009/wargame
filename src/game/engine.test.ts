@@ -54,14 +54,15 @@ describe("Grand strategy simulation", () => {
   });
   it("marches through multiple friendly provinces over simulation ticks", () => {
     let state = startCampaign("KHM");
-    const division = state.divisions.find((d) => d.owner === "KHM")!;
-    const path = friendlyPath(state, "phnom-penh", "siem-reap", "KHM");
+    state = recruitInfantry(state, "siem-reap").state;
+    const division = state.divisions.find((d) => d.provinceId === "siem-reap" && d.owner === "KHM")!;
+    const path = friendlyPath(state, "siem-reap", "kampot", "KHM");
     expect(path?.length).toBeGreaterThan(2);
-    const result = orderDivision(state, division.id, "siem-reap");
+    const result = orderDivision(state, division.id, "kampot");
     expect(result.error).toBeUndefined();
     state = result.state;
     for (let i = 0; i < ((path!.length - 1) * MARCH_TICKS); i++) state = advanceTick(state);
-    expect(state.divisions.find((d) => d.id === division.id)?.provinceId).toBe("siem-reap");
+    expect(state.divisions.find((d) => d.id === division.id)?.provinceId).toBe("kampot");
     expect(state.orders).toHaveLength(0);
   });
   it("rejects distant enemy invasions", () => {
