@@ -6,8 +6,8 @@ import type {
 export const RECRUIT_MANPOWER = 900;
 export const RECRUIT_EQUIPMENT = 100;
 export const FORT_EQUIPMENT = 175;
-export const MARCH_TICKS = 2;
-export const BATTLE_TICKS = 3;
+export const MARCH_TICKS = 8;
+export const BATTLE_TICKS = 12;
 
 function news(state: GameState, text: string, kind: GameEvent["kind"] = "intel"): GameState {
   const event: GameEvent = { id: state.nextEventId, tick: state.tick, kind, text };
@@ -158,41 +158,80 @@ export function orderDivision(state: GameState, divisionId: number, destination:
 export function cancelOrder(state: GameState, divisionId: number): GameState {
   return { ...state, orders: state.orders.filter((order) => order.divisionId !== divisionId) };
 }
-function battle(state: GameState, order: ArmyOrder): GameState {
-  const attacker = state.divisions.find((d) => d.id === order.divisionId);
+/**
+ * One simulation day of combat. Field divisions hold at the border while
+ * provincial garrisons and enemy field divisions absorb strength loss.
+ * Ownership changes only after both sources of defense are exhausted.
+ */
+function battleDay(state: GameState, order: ArmyOrder): { state: GameState; finished: boolean } {
+  const attacker = state.divisions.find((unit) => unit.id === order.divisionId);
   const target = state.provinces[order.destination];
   if (!attacker || !target || target.owner === attacker.owner ||
-    !state.provinces[attacker.provinceId].neighbors.includes(order.destination)) return state;
-  const defendingDivisions = state.divisions.filter((d) =>
-    d.provinceId === target.id && d.owner === target.owner);
-  const defenseCount = defendingDivisions.reduce((sum, d) => sum + d.strength, 0);
-  const defense = (defenseCount + 160 + target.fort * 400) * TERRAIN_DEFENSE[target.terrain];
-  const attack = attacker.strength * (1 + attacker.experience * 0.035);
-  const success = attack > defense * 1.05;
-  if (success) {
-    const casualties = Math.min(attacker.strength - 1, Math.max(50, Math.round(defense * 0.22)));
-    const moved = state.divisions
-      .filter((d) => !defendingDivisions.some((dead) => dead.id === d.id))
-      .map((d) => d.id === attacker.id
-        ? { ...d, provinceId: target.id, strength: d.strength - casualties, experience: d.experience + 1 }
-        : d);
-    const provinces: Record<string, Province> = {
-      ...state.provinces,
-      [target.id]: { ...target, owner: attacker.owner, fort: 0 },
-    };
-    return news({ ...state, divisions: moved, provinces },
-      target.name + " captured. " + casualties + " attacking troops lost.", "success");
+      !state.provinces[attacker.provinceId]?.neighbors.includes(target.id)) {
+    return { state, finished: true };
   }
-  const attackLoss = Math.min(attacker.strength - 1, Math.max(130, Math.round(defense * 0.19)));
-  const defenseLoss = Math.max(45, Math.floor(attack * 0.09));
-  const divisions = state.divisions.map((d) => {
-    if (d.id === attacker.id) return { ...d, strength: d.strength - attackLoss };
-    if (defendingDivisions.some((enemy) => enemy.id === d.id))
-      return { ...d, strength: Math.max(1, d.strength - Math.floor(defenseLoss / defendingDivisions.length)) };
-    return d;
-  });
-  return news({ ...state, divisions }, "Attack on " + target.name + " repelled. Reinforce your divisions.", "danger");
+  const defending = state.divisions.filter(
+    (unit) => unit.provinceId === target.id && unit.owner === target.owner,
+  );
+  const terrain = TERRAIN_DEFENSE[target.terrain];
+  const fortFactor = 1 + target.fort * 0.65;
+  const attackerPower = attacker.strength * (1 + attacker.experience * 0.035);
+  const strike = Math.max(5, Math.round(attackerPower * 0.13 / (terrain * fortFactor)));
+  const garrisonLoss = Math.min(target.garrison, Math.max(3, Math.round(strike * 0.85)));
+  const defendingStrength = defending.reduce((sum, unit) => sum + unit.strength, 0);
+  const attackLoss = Math.max(8, Math.round(
+    (target.garrison * 0.04 + defendingStrength * 0.045 + target.fort * 33) * terrain,
+  ));
+  const fieldLoss = Math.max(4, Math.round(strike * 0.85 / Math.max(1, defending.length)));
+  const defeatedIds = new Set<number>();
+  const nextDivisions = state.divisions.map((unit) => {
+    if (unit.id === attacker.id) {
+      const strength = Math.max(0, unit.strength - attackLoss);
+      if (strength <= 0) defeatedIds.add(unit.id);
+      return { ...unit, strength };
+    }
+    if (defending.some((enemy) => enemy.id === unit.id)) {
+      const strength = Math.max(0, unit.strength - fieldLoss);
+      if (strength <= 0) defeatedIds.add(unit.id);
+      return { ...unit, strength };
+    }
+    return unit;
+  }).filter((unit) => !defeatedIds.has(unit.id));
+  const remainingDefenders = nextDivisions.filter(
+    (unit) => unit.provinceId === target.id && unit.owner === target.owner,
+  );
+  const nextGarrison = Math.max(0, target.garrison - garrisonLoss);
+  const provinces = {
+    ...state.provinces,
+    [target.id]: { ...target, garrison: nextGarrison },
+  };
+  let next: GameState = { ...state, provinces, divisions: nextDivisions };
+  if (defeatedIds.has(attacker.id)) {
+    return {
+      state: news(next, attacker.name + " was defeated attacking " + target.name + ".", "danger"),
+      finished: true,
+    };
+  }
+  if (nextGarrison > 0 || remainingDefenders.length > 0) {
+    return { state: next, finished: false };
+  }
+  next = {
+    ...next,
+    provinces: {
+      ...next.provinces,
+      [target.id]: { ...target, owner: attacker.owner, fort: 0,
+        garrison: Math.min(100, target.maxGarrison) },
+    },
+    divisions: nextDivisions.map((unit) => unit.id === attacker.id
+      ? { ...unit, provinceId: target.id, experience: unit.experience + 1 }
+      : unit),
+  };
+  return {
+    state: news(next, target.name + " captured after prolonged fighting.", "success"),
+    finished: true,
+  };
 }
+
 export function advanceTick(state: GameState): GameState {
   if (state.status !== "playing" || state.paused) return state;
   let next: GameState = { ...state, tick: state.tick + 1 };
@@ -202,17 +241,28 @@ export function advanceTick(state: GameState): GameState {
     nations[province.owner].equipment = Math.min(100000, nations[province.owner].equipment + province.industry);
   }
   next.nations = nations;
+  const attackedProvinces = new Set(state.orders.filter((order) => order.kind === "attack")
+    .map((order) => order.destination));
+  next.provinces = Object.fromEntries(Object.entries(next.provinces).map(([id, province]) => [
+    id,
+    !attackedProvinces.has(id) && province.garrison < province.maxGarrison
+      ? { ...province, garrison: Math.min(province.maxGarrison,
+          province.garrison + 2 + province.industry) }
+      : province,
+  ]));
   const waiting: ArmyOrder[] = [];
   for (const pending of state.orders) {
     const division = next.divisions.find((d) => d.id === pending.divisionId);
     if (!division) continue;
     const progressed: ArmyOrder = { ...pending, progress: pending.progress + 1 };
-    if (progressed.progress < (progressed.kind === "march" ? MARCH_TICKS : BATTLE_TICKS)) {
-      waiting.push(progressed);
+    if (progressed.kind === "attack") {
+      const result = battleDay(next, progressed);
+      next = result.state;
+      if (!result.finished) waiting.push(progressed);
       continue;
     }
-    if (progressed.kind === "attack") {
-      next = battle(next, progressed);
+    if (progressed.progress < MARCH_TICKS) {
+      waiting.push(progressed);
       continue;
     }
     const location = progressed.path[progressed.cursor];
