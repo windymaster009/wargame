@@ -3,6 +3,7 @@ import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { geography, MAP_WIDTH, MAP_HEIGHT, mapPoint, provinceCenter, geographicBounds } from "../game/geography";
 import { NATIONS, NATION_BY_ID } from "../game/map";
 import { MARCH_TICKS } from "../game/engine";
+import { clipFront, invasionDirection, progressCutoff, type MapPoint } from "../game/frontline";
 import type { GameState, Terrain } from "../game/types";
 
 interface Props {
@@ -95,6 +96,8 @@ export function StrategyMap({
   const dropUnitRef = useRef(onDivisionDrop);
   const unitDragRef = useRef<number | null>(null);
   const originRef = useRef<{x:number;y:number}|null>(null);
+  const initialPointerRef = useRef<{x:number;y:number}|null>(null);
+  const lastUnitVisualRef = useRef<Map<number,{x:number;y:number}>>(new Map());
   const dragLineRef = useRef<Graphics | null>(null);
   const gameRef = useRef(game);
   const zoomRef = useRef(onZoomChange);
@@ -180,10 +183,17 @@ export function StrategyMap({
           const id=unitDragRef.current;
           unitDragRef.current = null;
           const province=hitAt(event.clientX,event.clientY);
+          const bounds=app.canvas.getBoundingClientRect();
+          const initial=initialPointerRef.current;
+          const movedEnough=initial !== null && Math.hypot(
+            event.clientX-bounds.left-initial.x,
+            event.clientY-bounds.top-initial.y,
+          ) > 9;
           dragLineRef.current?.clear();
           originRef.current = null;
+          initialPointerRef.current = null;
           dragTimeRef.current = performance.now();
-          if (province) dropUnitRef.current(id,province);
+          if (movedEnough && province) dropUnitRef.current(id,province);
           dragging=false;
           return;
         }
@@ -288,12 +298,41 @@ export function StrategyMap({
         });
         world.addChild(graphics);
         if (attacker && siege > 0) {
-          const occupation = new Graphics();
-          occupation.poly(polygonPoints(ring)).fill({
-            color:NATION_BY_ID[attacker.owner].color,alpha:Math.min(.68,siege*.65)
-          });
-          occupation.eventMode="none";
-          world.addChild(occupation);
+          const source=provinceCenter(attacker.provinceId);
+          const target=provinceCenter(province.id);
+          const direction=invasionDirection(source,target);
+          const rings=geometry.polygons.map((poly)=>polygonPoints(poly)
+            .reduce<MapPoint[]>((acc,_,i,points)=>{
+              if(i%2===0)acc.push([points[i],points[i+1]]);
+              return acc;
+            },[]));
+          const pointRing=polygonPoints(ring).reduce<MapPoint[]>((acc,_,i,points)=>{
+            if(i%2===0)acc.push([points[i],points[i+1]]);
+            return acc;
+          },[]);
+          const cutoff=progressCutoff(rings,direction,siege);
+          const occupied=clipFront(pointRing,direction,cutoff);
+          if(occupied.length>=3) {
+            const occupation=new Graphics();
+            occupation.poly(occupied.flat()).fill({
+              color:NATION_BY_ID[attacker.owner].color,alpha:.6
+            });
+            occupation.eventMode="none";
+            world.addChild(occupation);
+          }
+          // Soft leading edge: a few translucent strips ahead of the capture front.
+          for(const [distance,opacity] of [[.035,.1],[.07,.06]] as const) {
+            const fade=clipFront(pointRing,direction,progressCutoff(rings,direction,
+              Math.min(.99,siege+distance)));
+            if(fade.length>=3) {
+              const mist=new Graphics();
+              mist.poly(fade.flat()).fill({
+                color:NATION_BY_ID[attacker.owner].color,alpha:opacity
+              });
+              mist.eventMode="none";
+              world.addChild(mist);
+            }
+          }
         }
       }
       // Tiny deterministic terrain strokes lend the land an organic relief texture.
@@ -386,6 +425,11 @@ export function StrategyMap({
       }
     }
 
+    // Keep map markers between simulation ticks and animate screen positions smoothly.
+    const animations: Array<{
+      id:number; from:{x:number;y:number}; to:{x:number;y:number};
+      marker:Graphics; label:Text; bar?:Graphics;
+    }> = [];
     // Draw individual divisions ABOVE map labels so the counters are draggable.
     const unitsByProvince = new Map<string,number>();
     for (const unit of game.divisions) {
@@ -405,9 +449,10 @@ export function StrategyMap({
       counter.eventMode=mine?"static":"none";
       counter.cursor=mine?"grab":"default";
       if (mine) {
-        counter.on("pointerdown",()=>{
+        counter.on("pointerdown",(event)=>{
           unitDragRef.current=unit.id;
           originRef.current={x,y};
+          initialPointerRef.current={x:event.global.x,y:event.global.y};
           selectUnitRef.current(unit.id);
         });
       }
@@ -418,6 +463,7 @@ export function StrategyMap({
       text.position.set(x,y);
       text.eventMode="none";
       world.addChild(text);
+      let unitBar:Graphics|undefined;
       if(active?.kind==="attack") {
         const target=game.provinces[active.destination];
         if(target) {
@@ -427,8 +473,11 @@ export function StrategyMap({
           bar.roundRect(x-20,y+15,40*percent,5,1).fill(0xf0b778);
           bar.eventMode="none";
           world.addChild(bar);
+          unitBar=bar;
         }
       }
+      const previous=lastUnitVisualRef.current.get(unit.id) ?? {x,y};
+      animations.push({id:unit.id,from:{...previous},to:{x,y},marker:counter,label:text,bar:unitBar});
     }
     const dragGuide = new Graphics();
     dragGuide.eventMode = "none";
@@ -459,6 +508,25 @@ export function StrategyMap({
     theater.position.set(100, 35);
     theater.alpha = .9;
     world.addChild(theater);
+    const start=performance.now();
+    let frame=0;
+    const animate=()=>{
+      const t=Math.min(1,(performance.now()-start)/800);
+      const eased=t*t*(3-2*t);
+      const live=new Map<number,{x:number;y:number}>();
+      for(const anim of animations) {
+        const x=anim.from.x+(anim.to.x-anim.from.x)*eased;
+        const y=anim.from.y+(anim.to.y-anim.from.y)*eased;
+        anim.marker.position.set(x-anim.to.x,y-anim.to.y);
+        anim.label.position.set(x,y);
+        anim.bar?.position.set(x-anim.to.x,y-anim.to.y);
+        live.set(anim.id,{x,y});
+      }
+      lastUnitVisualRef.current=live;
+      if(t<1)frame=requestAnimationFrame(animate);
+    };
+    animate();
+    return ()=>cancelAnimationFrame(frame);
   }, [game, selectedProvinceId, selectedDivisionId, destinationMode, zoom, ready, viewportRevision]);
 
   return (
