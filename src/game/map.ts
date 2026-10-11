@@ -1,6 +1,5 @@
 import type { Nation, NationId, Province, ProvinceDefinition, Terrain } from "./types";
 import { geography } from "./geography";
-import cambodiaProvinces from "./cambodia-provinces.json";
 
 export const NATIONS: Nation[] = [
   { id: "KHM", name: "Cambodia", capital: "phnom-penh", color: 0xc5a46b, flag: "🇰🇭", adjective: "Khmer" },
