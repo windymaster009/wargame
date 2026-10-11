@@ -21,6 +21,9 @@ export interface ProvinceDefinition {
 export interface Province extends ProvinceDefinition {
   owner: NationId;
   fort: number;
+  /** Local defenders must be defeated before capture. */
+  garrison: number;
+  maxGarrison: number;
   neighbors: string[];
 }
 export interface Division {
