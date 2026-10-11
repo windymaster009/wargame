@@ -3,6 +3,7 @@ import { Application, CanvasSource, Container, Graphics, Sprite, Text, TextStyle
 import { geography, MAP_WIDTH, MAP_HEIGHT, mapPoint, provinceCenter, geographicBounds } from "../game/geography";
 import { NATIONS, NATION_BY_ID } from "../game/map";
 import { MARCH_TICKS } from "../game/engine";
+import { chooseMapLabels } from "../game/mapLabels";
 import { decodeOpenFrontTerrain, OPENFRONT_MAP_WIDTH, OPENFRONT_MAP_HEIGHT,
   OPENFRONT_TERRAIN_URL, openFrontRasterPlacement } from "../game/openfrontTerrain";
 import { clipFront, invasionDirection, progressCutoff, type MapPoint } from "../game/frontline";
@@ -481,44 +482,34 @@ export function StrategyMap({
     }
 
     const ownId = game.playerNation;
-    const labelStyle = new TextStyle({
-      fontFamily: "Arial, sans-serif", fontWeight: "600",
-      fontSize: 10, fill: 0x22372f, align: "center", wordWrap: true, wordWrapWidth: 77,
+    const regularStyle=new TextStyle({
+      fontFamily:"Arial, sans-serif",fontWeight:"600",
+      fontSize:11,fill:0x203e34,align:"center",
     });
-    const selectedLabelStyle = new TextStyle({
-      fontFamily: "Arial, sans-serif", fontWeight: "bold",
-      fontSize: 12, fill: 0x112723, align: "center", wordWrap: true, wordWrapWidth: 112,
+    const highlightedStyle=new TextStyle({
+      fontFamily:"Arial, sans-serif",fontWeight:"bold",
+      fontSize:12,fill:0x152e27,align:"center",
     });
-    for (const province of Object.values(game.provinces)) {
-      const label = provinceCenter(province.id);
-      const isCapital = NATIONS.some((n) => n.capital === province.id);
-      const selected = province.id === selectedProvinceId;
-      const divisions = game.divisions.filter((d) => d.provinceId === province.id);
-      // Keep the 25 smaller Cambodian regions legible: labels reveal as the
-      // player zooms in; selected areas and capitals are always visible.
-      const showLabel = selected || isCapital ||
-        zoom > 2.1 ||
-        (zoom > 1.48 && (province.originalOwner !== "KHM" || hash(province.id)%2===0)) ||
-        (zoom > 1.15 && hash(province.id)%5===0);
-      if (showLabel) {
-        const text = new Text({
-          text: province.name,
-          style: selected ? selectedLabelStyle : labelStyle,
-        });
-        text.anchor.set(.5, .5);
-        text.position.set(label.x, label.y - (divisions.length ? 13 : 0));
-        text.eventMode = "none";
-        world.addChild(text);
-      }
-      // Divisions are drawn as individual draggable counters below,
-      // not a single static province total.
-      if (province.fort > 0) {
-        const fort = new Text({ text: "◆" + province.fort,
-          style: { fontFamily: "Arial", fontSize: 10, fontWeight: "bold", fill: 0x384b35 } });
-        fort.position.set(label.x + 18, label.y - 23);
-        fort.eventMode = "none";
-        world.addChild(fort);
-      }
+    for(const label of chooseMapLabels(game,selectedProvinceId,zoom)){
+      const name=new Text({
+        text:label.text,
+        style:label.selected?highlightedStyle:regularStyle,
+      });
+      name.anchor.set(.5);
+      name.position.set(label.x,label.y-6);
+      name.eventMode="none";
+      world.addChild(name);
+    }
+    for(const province of Object.values(game.provinces)){
+      if(province.fort<=0||zoom<1.7)continue;
+      const center=provinceCenter(province.id);
+      const fort=new Text({
+        text:"◆"+province.fort,
+        style:{fontFamily:"Arial",fontSize:10,fontWeight:"bold",fill:0x364e38},
+      });
+      fort.position.set(center.x+15,center.y-23);
+      fort.eventMode="none";
+      world.addChild(fort);
     }
 
     // Keep map markers between simulation ticks and animate screen positions smoothly.
@@ -580,7 +571,7 @@ export function StrategyMap({
     world.addChild(dragGuide);
     dragLineRef.current = dragGuide;
 
-    if (zoom > .85) {
+    if (zoom >= .8 && zoom < 1.65) {
       for (const [label, lon, lat] of Object.values(NATION_LABELS)) {
         const position = mapPoint(lon as number, lat as number);
         const heading = new Text({
@@ -589,7 +580,7 @@ export function StrategyMap({
             letterSpacing: 2, fontWeight: "bold", fill: 0x1e3b32 },
         });
         heading.anchor.set(.5);
-        heading.alpha = .46;
+        heading.alpha = .34;
         heading.position.set(position.x, position.y);
         heading.eventMode = "none";
         world.addChild(heading);
