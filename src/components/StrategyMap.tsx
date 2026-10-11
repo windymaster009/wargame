@@ -632,7 +632,15 @@ export function StrategyMap({
       {!ready && <div className="map-loading">Loading strategic theater…</div>}
       {hoveredProvince && game.provinces[hoveredProvince] && hoveredProvince !== selectedProvinceId &&
         <div className="map-hover-label">{game.provinces[hoveredProvince].name} · {NATION_BY_ID[game.provinces[hoveredProvince].owner].name}</div>}
-      <div className="map-watermark">TERRAIN: OPENFRONT (CC BY-SA 4.0) · STRATEGIC REGIONS: IRON MERIDIAN</div>
+      <div className="map-watermark">
+        {terrainReady ? "Terrain: " : "Map fallback · OpenFront terrain unavailable · "}
+        <a href="https://github.com/windymaster009/OpenFrontIO/tree/redesign/resources/maps/southeastasia"
+          target="_blank" rel="noopener noreferrer">OpenFront Southeast Asia</a>
+        {" · "}
+        <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank"
+          rel="noopener noreferrer">CC BY-SA 4.0</a>
+        {" · custom terrain palette"}
+      </div>
     </div>
   );
 }
