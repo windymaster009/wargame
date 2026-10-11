@@ -299,3 +299,34 @@ button:focus-visible { outline: 2px solid #dec27d; outline-offset: 3px; }
 .division-row[draggable="true"] { cursor: grab; }
 .division-row[draggable="true"]:active { cursor: grabbing; }
 .strategy-map canvas { cursor: crosshair; touch-action: none; }
+
+/* Map provenance links remain accessible without obstructing commands. */
+.map-watermark {
+  font-size: 9px;
+  color: #e7edda;
+  padding: 5px 8px;
+  border: 1px solid #557e6e66;
+  border-radius: 5px;
+  background: #112820dc;
+  letter-spacing: .02em;
+  right: 315px;
+  z-index: 3;
+}
+.map-watermark a { color: #f1d797; text-decoration: underline; }
+.map-watermark a:hover { color: #fff1c2; }
+.map-hover-label {
+  position: absolute;
+  left: 50%;
+  top: 23px;
+  transform: translateX(-50%);
+  background: #142f27ed;
+  border: 1px solid #829d87;
+  color: #f4e9c6;
+  padding: 7px 13px;
+  border-radius: 5px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@media (max-width: 950px) { .map-watermark { right: 12px; } }
+@media (max-width: 540px) { .map-watermark { display: block; font-size: 8px; bottom: 5px; } }
