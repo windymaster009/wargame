@@ -114,3 +114,36 @@ province names and point coordinates from
 [open-admin-data](https://github.com/open-admin-data/cambodia-administrative-divisions)
 (CC BY 4.0). Voronoi internal borders are generated gameplay geometry, not official
 administrative surveys.
+
+## OpenFront terrain map integration
+
+The battlefield now loads **the actual Southeast Asia encoded terrain dataset**
+from the user's fork: `windymaster009/OpenFrontIO/resources/maps/southeastasia/map.bin`.
+This is the high-resolution OpenFront land, mountain, coast and sea raster — not a
+Google Maps screenshot and not the game's old flat Natural Earth polygon background.
+
+First run:
+```powershell
+git pull origin main
+npm install
+npm run dev
+```
+
+`npm run dev` and `npm run build` automatically fetch and cache the 4.7 MB
+terrain raster in `public/maps/` when online. If fetching fails, the old map
+draws as a fallback. The game simulation, playable 55 strategic provinces
+(including 25 named Cambodian regions), selection and draggable army orders
+are still Iron Meridian features layered on top, rather than OpenFront gameplay.
+
+At ordinary zoom, province names are hidden except for the selected territory
+and major landmarks. More nonoverlapping labels appear as you zoom in; hover over
+a province to read its name. The game is designed to remain readable with
+many more subdivisions.
+
+**License and credits:** OpenFront's openly licensed map dataset is CC BY-SA
+4.0. The binary dataset is recolored with an independently implemented palette;
+OpenFront's AGPL game engine, its proprietary assets and premium CDN resources
+are not copied. See [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
+The original terrain file does not contain a geodetic projection; map texture
+alignment is **approximate** and must be visually verified/calibrated.
+
