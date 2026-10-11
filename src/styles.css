@@ -265,3 +265,37 @@ button:focus-visible { outline: 2px solid #dec27d; outline-offset: 3px; }
   .map-top-left span:last-child { display: none; }
   .map-watermark { display: none; }
 }
+
+/* Visible, state-driven border combat — progress follows real defender losses. */
+.siege-panel {
+  border: 1px solid #d1945980;
+  border-radius: 6px;
+  background: #54352252;
+  padding: 11px;
+  margin: 10px 0;
+}
+.siege-panel .section-title { color: #f4c894; margin-bottom: 8px; }
+.siege-panel p, .siege-panel small {
+  margin: 5px 0;
+  color: #f1cdb3;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.siege-meter, .movement-meter {
+  height: 7px;
+  border-radius: 10px;
+  background: #25362d;
+  border: 1px solid #755d4c;
+  overflow: hidden;
+  margin: 9px 0;
+}
+.siege-meter > span, .movement-meter > span {
+  height: 100%;
+  display: block;
+  background: linear-gradient(90deg,#d49359,#ffe1a3);
+  border-radius: inherit;
+  transition: width 500ms ease;
+}
+.division-row[draggable="true"] { cursor: grab; }
+.division-row[draggable="true"]:active { cursor: grabbing; }
+.strategy-map canvas { cursor: crosshair; touch-action: none; }
