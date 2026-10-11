@@ -72,12 +72,18 @@ describe("Grand strategy simulation", () => {
   });
   it("resolves an actual offensive, changes province ownership and applies casualties", () => {
     let state = startCampaign("KHM");
-    const division = state.divisions.find((d) => d.owner === "KHM")!;
+    state = recruitInfantry(state,"svay-rieng").state;
+    const division = state.divisions.find((d) => d.owner === "KHM" && d.provinceId==="svay-rieng")!;
     const order = orderDivision(state, division.id, "saigon");
     expect(order.error).toBeUndefined();
     expect(order.state.orders[0].kind).toBe("attack");
     state = order.state;
-    for (let i = 0; i < BATTLE_TICKS; i++) state = advanceTick(state);
+    const initialGarrison = state.provinces.saigon.garrison;
+    state = advanceTick(state);
+    expect(state.provinces.saigon.owner).toBe("VNM");
+    expect(state.provinces.saigon.garrison).toBeLessThan(initialGarrison);
+    expect(state.orders.some((o)=>o.kind==="attack")).toBe(true);
+    for (let i = 1; i < BATTLE_TICKS; i++) state = advanceTick(state);
     expect(state.provinces.saigon.owner).toBe("KHM");
     const moved = state.divisions.find((d) => d.id === division.id)!;
     expect(moved.provinceId).toBe("saigon");
@@ -87,23 +93,24 @@ describe("Grand strategy simulation", () => {
   });
   it("fortified territory can repel a weaker attacking division", () => {
     let state = startCampaign("KHM");
+    state = recruitInfantry(state, "svay-rieng").state;
     state = {
       ...state, provinces: {
         ...state.provinces,
         saigon: { ...state.provinces.saigon, fort: 3 },
       },
     };
-    const attacker = state.divisions.find((d) => d.owner === "KHM")!;
+    const attacker = state.divisions.find((d) => d.owner==="KHM" && d.provinceId==="svay-rieng")!;
     const order = orderDivision(state, attacker.id, "saigon");
     state = order.state;
     for (let i = 0; i < BATTLE_TICKS; i++) state = advanceTick(state);
     expect(state.provinces.saigon.owner).toBe("VNM");
-    expect(state.divisions.find((d) => d.id === attacker.id)!.strength).toBeLessThan(attacker.strength);
+    expect(state.divisions.find((d) => d.id === attacker.id)?.strength ?? 0).toBeLessThan(attacker.strength);
   });
   it("pause stops ticks and cancelling orders removes a planned march", () => {
     const state = startCampaign("KHM");
     const division = state.divisions.find((d) => d.owner === "KHM")!;
-    const ordered = orderDivision(state, division.id, "kratie").state;
+    const ordered = orderDivision(state, division.id, "kandal").state;
     expect(cancelOrder(ordered, division.id).orders).toHaveLength(0);
     const paused = setPaused(ordered, true);
     expect(advanceTick(paused)).toBe(paused);
